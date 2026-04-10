@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>부서 AI 어시스턴트</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Pretendard', 'Malgun Gothic', sans-serif;
+    background: #f5f5f3;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    max-width: 760px;
+    margin: 0 auto;
+    height: 100vh;
+  }
+  .header {
+    background: #ffffff;
+    border-bottom: 0.5px solid rgba(0,0,0,0.1);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .header-icon {
+    width: 34px; height: 34px;
+    background: #e8f0fe;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .header-icon svg { width: 18px; height: 18px; }
+  .header-text h1 { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+  .header-text p { font-size: 12px; color: #888; }
+  .status {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: #3cb371;
+  }
+  .status-dot { width: 7px; height: 7px; background: #3cb371; border-radius: 50%; }
+
+  .chat-area {
+    flex: 1; overflow-y: auto;
+    padding: 20px 16px;
+    display: flex; flex-direction: column; gap: 14px;
+    min-height: 0;
+  }
+
+  .msg { display: flex; gap: 10px; align-items: flex-start; }
+  .msg.user { flex-direction: row-reverse; }
+
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; flex-shrink: 0;
+  }
+  .avatar.bot { background: #e8f0fe; color: #3b5bdb; }
+  .avatar.user-av { background: #f0f0f0; color: #555; border: 0.5px solid #ddd; }
+
+  .bubble {
+    max-width: 72%; padding: 10px 14px; border-radius: 14px;
+    font-size: 14px; line-height: 1.65; color: #1a1a1a;
+  }
+  .bubble.bot {
+    background: #ffffff; border: 0.5px solid rgba(0,0,0,0.1);
+    border-top-left-radius: 4px;
+  }
+  .bubble.user { background: #3b5bdb; color: #ffffff; border-top-right-radius: 4px; }
+  .bubble.error { background: #fff0f0; color: #c0392b; border: 0.5px solid #fdd; }
+
+  .typing { display: flex; gap: 4px; align-items: center; padding: 12px 14px; }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #aaa;
+    animation: bounce 1.2s infinite;
+  }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  .suggestions {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 4px 16px 12px;
+  }
+  .chip {
+    padding: 6px 12px; background: #ffffff;
+    border: 0.5px solid #ddd; border-radius: 20px;
+    font-size: 13px; color: #555; cursor: pointer;
+    transition: background 0.15s, color 0.15s; font-family: inherit;
+  }
+  .chip:hover { background: #f0f0f0; color: #1a1a1a; }
+
+  .input-area {
+    background: #ffffff; border-top: 0.5px solid rgba(0,0,0,0.1);
+    padding: 12px 16px; display: flex; gap: 8px;
+    align-items: flex-end; flex-shrink: 0;
+  }
+  textarea {
+    flex: 1; padding: 10px 14px; font-size: 14px; font-family: inherit;
+    border: 0.5px solid #ccc; border-radius: 12px;
+    background: #f8f8f8; color: #1a1a1a; resize: none;
+    min-height: 42px; max-height: 120px; line-height: 1.5;
+    outline: none; transition: border-color 0.15s;
+  }
+  textarea:focus { border-color: #3b5bdb; background: #fff; }
+  textarea::placeholder { color: #bbb; }
+
+  .send-btn {
+    width: 40px; height: 40px; border-radius: 50%; border: none;
+    background: #3b5bdb; color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: opacity 0.15s, background 0.15s;
+  }
+  .send-btn:hover { background: #2f4cad; }
+  .send-btn:disabled { opacity: 0.35; cursor: default; }
+  .send-btn svg { width: 17px; height: 17px; }
+
+  .timestamp { font-size: 11px; color: #bbb; text-align: center; margin: 4px 0; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#3b5bdb" stroke-width="1.8">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  </div>
+  <div class="header-text">
+    <h1>부서 AI 어시스턴트</h1>
+    <p>컨테이너 · H/C 담당자 안내</p>
+  </div>
+  <div class="status">
+    <div class="status-dot"></div>
+    온라인
+  </div>
+</div>
+
+<div class="chat-area" id="chatArea">
+  <div class="timestamp">오늘</div>
+  <div class="msg">
+    <div class="avatar bot">AI</div>
+    <div class="bubble bot">안녕하세요! 부서 AI 어시스턴트입니다 👋<br>컨테이너/H/C 담당자 연락처, 선적일, 업무 관련 질문을 해주세요.</div>
+  </div>
+</div>
+
+<div class="suggestions" id="chips">
+  <button class="chip" onclick="useChip(this)">베트남 담당자 알려줘</button>
+  <button class="chip" onclick="useChip(this)">인도네시아 컨택 메일 주소</button>
+  <button class="chip" onclick="useChip(this)">심영환 담당 공장 목록</button>
+  <button class="chip" onclick="useChip(this)">패킹리스트 입력 기한</button>
+</div>
+
+<div class="input-area">
+  <textarea id="inputBox" placeholder="질문을 입력하세요..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+  <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="22" y1="2" x2="11" y2="13"/>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+
+// ============================================================
+//  ✏️  데이터 수정은 이 블록만 편집하세요 (업데이트: 2026.03.16)
+// ============================================================
+
+const DATA_UPDATED = "2026.03.16";
+
+// 컨테이너 담당자 목록
+// 필드: no, country, city, factory, ship_day, contact_kr, contact_en, email, tel, biweekly, prev_person
+const CONTAINER_CONTACTS = [
+  { no:1,  country:"GUATEMALA",  city:"",          factory:"Modas Kotop S.A.",                                        ship_day:"MON",     contact_kr:"심영환",  contact_en:"Shim young-hwan",  email:"yhshim@hansoll.com",  tel:"02-3287-8076", biweekly:false, prev_person:"" },
+  { no:2,  country:"NICARAGUA",  city:"",          factory:"Handsome Nica, S.A.",                                     ship_day:"MON",     contact_kr:"심영환",  contact_en:"Shim young-hwan",  email:"yhshim@hansoll.com",  tel:"02-3287-8076", biweekly:false, prev_person:"" },
+  { no:3,  country:"VIETNAM",    city:"HO CHI MINH", factory:"Hansoll Vina Co., Ltd.",                               ship_day:"MON/WED", contact_kr:"심영환",  contact_en:"Shim young-hwan",  email:"yhshim@hansoll.com",  tel:"02-3287-8076", biweekly:false, prev_person:"" },
+  { no:4,  country:"VIETNAM",    city:"HO CHI MINH", factory:"Hantex Vina Co., Ltd.",                                ship_day:"MON/WED", contact_kr:"심영환",  contact_en:"Shim young-hwan",  email:"yhshim@hansoll.com",  tel:"02-3287-8076", biweekly:false, prev_person:"" },
+  { no:5,  country:"VIETNAM",    city:"HO CHI MINH", factory:"JC Int'l Vina Co., Ltd.",                              ship_day:"MON/WED", contact_kr:"심영환",  contact_en:"Shim young-hwan",  email:"yhshim@hansoll.com",  tel:"02-3287-8076", biweekly:false, prev_person:"" },
+  { no:6,  country:"VIETNAM",    city:"HO CHI MINH", factory:"Kotop Vina Co., Ltd.",                                 ship_day:"MON/WED", contact_kr:"심영환",  contact_en:"Shim young-hwan",  email:"yhshim@hansoll.com",  tel:"02-3287-8076", biweekly:false, prev_person:"" },
+  { no:7,  country:"VIETNAM",    city:"HO CHI MINH", factory:"Unisoll Vina Co., Ltd.",                               ship_day:"MON/WED", contact_kr:"심영환",  contact_en:"Shim young-hwan",  email:"yhshim@hansoll.com",  tel:"02-3287-8076", biweekly:false, prev_person:"" },
+  { no:8,  country:"VIETNAM",    city:"HANOI",     factory:"Dap Cau - Yen Phong Joint Stock Company",                ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1234" },
+  { no:9,  country:"VIETNAM",    city:"HANOI",     factory:"Ha Bac Export Garment Joint Stock Company",              ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1235" },
+  { no:10, country:"VIETNAM",    city:"HANOI",     factory:"Ha Phong Export Garment Joint Stock Company",            ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1236" },
+  { no:11, country:"VIETNAM",    city:"HANOI",     factory:"Halotexco Garment Joint Stock Company",                  ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1237" },
+  { no:12, country:"VIETNAM",    city:"HANOI",     factory:"HANOI TEXTILE AND GARMENT JOINT STOCK CORPORATION",      ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1238" },
+  { no:13, country:"VIETNAM",    city:"HANOI",     factory:"Jeil Jersey Vina Company Limited",                       ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1239" },
+  { no:14, country:"VIETNAM",    city:"HANOI",     factory:"Minh Duc Branch - Ha Bac Export Garment Joint Stock Co.",ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1240" },
+  { no:15, country:"VIETNAM",    city:"HANOI",     factory:"Osung Vina Co., Ltd.",                                   ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1241" },
+  { no:16, country:"VIETNAM",    city:"HANOI",     factory:"SONG HONG GARMENT JOINT STOCK COMPANY",                 ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1242" },
+  { no:17, country:"VIETNAM",    city:"HANOI",     factory:"THIEN SON GARMENT COMPANY LIMITED",                      ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1243" },
+  { no:18, country:"VIETNAM",    city:"HANOI",     factory:"Tien Hung Joint Stock Company",                          ship_day:"WED",     contact_kr:"고우리",  contact_en:"Ko woo-ri",        email:"wrko@hansoll.com",    tel:"02-3287-8230", biweekly:true,  prev_person:"이세진",
+    contact2_kr:"장현주", contact2_en:"Jang Hyun-ju", email2:"hjjang3@hansoll.com", tel2:"02-3287-1244" },
+  { no:19, country:"CAMBODIA",   city:"",          factory:"Cambo unisol Ltd",                                       ship_day:"FRI",     contact_kr:"이세진",  contact_en:"Lee se jin",       email:"sjlee9@hansoll.com",  tel:"02-3287-8230", biweekly:false, prev_person:"김규리" },
+  { no:20, country:"INDONESIA",  city:"JAKARTA",   factory:"PT. HANDSOME",                                           ship_day:"WED",     contact_kr:"손정혜",  contact_en:"Son Jung-Hye",     email:"jhson2@hansoll.com",  tel:"02-3287-8018", biweekly:false, prev_person:"" },
+  { no:21, country:"INDONESIA",  city:"SEMARANG",  factory:"PT. ANUGERAH ABADI MAGELANG",                           ship_day:"WED",     contact_kr:"손정혜",  contact_en:"Son Jung-Hye",     email:"jhson2@hansoll.com",  tel:"02-3287-8018", biweekly:false, prev_person:"" },
+  { no:22, country:"INDONESIA",  city:"SEMARANG",  factory:"PT. Han Top Jaya",                                       ship_day:"WED",     contact_kr:"손정혜",  contact_en:"Son Jung-Hye",     email:"jhson2@hansoll.com",  tel:"02-3287-8018", biweekly:false, prev_person:"" },
+  { no:23, country:"INDONESIA",  city:"SEMARANG",  factory:"PT. HANSOLL INDO JAVA",                                  ship_day:"WED",     contact_kr:"손정혜",  contact_en:"Son Jung-Hye",     email:"jhson2@hansoll.com",  tel:"02-3287-8018", biweekly:false, prev_person:"" },
+  { no:24, country:"INDONESIA",  city:"SEMARANG",  factory:"PT. Sadua Indo",                                         ship_day:"WED",     contact_kr:"손정혜",  contact_en:"Son Jung-Hye",     email:"jhson2@hansoll.com",  tel:"02-3287-8018", biweekly:false, prev_person:"" },
+];
+
+// H/C 담당자 목록
+// 필드: no, country, closing, ship_days, contact_kr, contact_en, email, tel, prev_person
+const HC_CONTACTS = [
+  { no:1, country:"VIETNAM",   closing:"MON~FRI 14:00 / SAT(FRI 17:00)",  ship_days:"MON~FRI",           contact_kr:"이세진", contact_en:"Lee se jin", email:"sjlee9@hansoll.com", tel:"02-3287-8230", prev_person:"김규리" },
+  { no:2, country:"INDONESIA", closing:"TUE~THU 11:00 / SAT(FRI 15:30)",  ship_days:"TUE, WED, THU, SAT", contact_kr:"이세진", contact_en:"Lee se jin", email:"sjlee9@hansoll.com", tel:"02-3287-8230", prev_person:"" },
+  { no:3, country:"CAMBODIA",  closing:"TUE/THU 11:50 / SAT(FRI 17:00)",  ship_days:"TUE, THU, SAT",     contact_kr:"이세진", contact_en:"Lee se jin", email:"sjlee9@hansoll.com", tel:"02-3287-8230", prev_person:"김규리" },
+];
+
+// 공지사항
+const NOTICES = {
+  packing_list: "패킹리스트 입력은 패킹일자 2일 전 오후 5시까지 완료. 출고 확정이나 detail 수량 미확정 시 임시 등록.",
+  b3_arrival:   "모든 자재 B3 입고는 당일 오전 10:00까지.",
+};
+
+// ============================================================
+//  ⬆️  데이터 영역 끝. 아래는 수정하지 않아도 됩니다.
+// ============================================================
+
+// 데이터를 자연어 문서로 변환 (SYSTEM_PROMPT용)
+function buildDocument() {
+  let doc = `[HANSOLL CONTAINER CONTACT PERSON] (Updated: ${DATA_UPDATED})\n`;
+  doc += `공지: ${NOTICES.packing_list}\n\n`;
+
+  for (const r of CONTAINER_CONTACTS) {
+    const loc = r.city ? `${r.country} (${r.city})` : r.country;
+    doc += `NO.${r.no} | ${loc} | ${r.factory}\n`;
+    doc += `  선적일: ${r.ship_day}\n`;
+    if (r.biweekly && r.contact2_kr) {
+      doc += `  담당자(격주 로테이션):\n`;
+      doc += `    ① ${r.contact_kr}(${r.contact_en}) / 이메일: ${r.email} / TEL: ${r.tel}\n`;
+      doc += `    ② ${r.contact2_kr}(${r.contact2_en}) / 이메일: ${r.email2} / TEL: ${r.tel2}\n`;
+    } else {
+      doc += `  담당자: ${r.contact_kr}(${r.contact_en}) / 이메일: ${r.email} / TEL: ${r.tel}\n`;
+    }
+    if (r.prev_person) doc += `  이전 담당자: ${r.prev_person}\n`;
+    doc += "\n";
+  }
+
+  doc += `\n[HANSOLL H/C CONTACT PERSON] (Updated: ${DATA_UPDATED})\n`;
+  doc += `공지: ${NOTICES.b3_arrival}\n\n`;
+
+  for (const r of HC_CONTACTS) {
+    doc += `NO.${r.no} | ${r.country}\n`;
+    doc += `  마감시간: ${r.closing}\n`;
+    doc += `  선적 가능 요일: ${r.ship_days}\n`;
+    doc += `  담당자: ${r.contact_kr}(${r.contact_en}) / 이메일: ${r.email} / TEL: ${r.tel}\n`;
+    if (r.prev_person) doc += `  이전 담당자: ${r.prev_person}\n`;
+    doc += "\n";
+  }
+
+  return doc;
+}
+
+const SYSTEM_PROMPT = `당신은 회사 부서 내에서 사용하는 AI 어시스턴트입니다. 아래 참조 문서를 기반으로 담당자 연락처, 선적일, 업무 절차 관련 질문에 정확하게 답변합니다.
+문서에 없는 내용은 "해당 정보는 문서에 없습니다"라고 안내하세요.
+한국어로 답변하고, 이모지를 적절히 사용해 친근하게 답변하세요.
+
+===== 참조 문서 =====
+
+${buildDocument()}
+=====================`;
+
+// ============================================================
+//  UI 로직
+// ============================================================
+
+const chatArea = document.getElementById('chatArea');
+const inputBox = document.getElementById('inputBox');
+const sendBtn  = document.getElementById('sendBtn');
+const chipsEl  = document.getElementById('chips');
+
+let isLoading = false;
+const history = [];
+
+inputBox.addEventListener('input', () => {
+  sendBtn.disabled = !inputBox.value.trim() || isLoading;
+});
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (!sendBtn.disabled) sendMessage();
+  }
+}
+
+function useChip(btn) {
+  inputBox.value = btn.textContent;
+  autoResize(inputBox);
+  sendBtn.disabled = false;
+  chipsEl.style.display = 'none';
+  sendMessage();
+}
+
+function addMsg(role, text, isError) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg' + (role === 'user' ? ' user' : '');
+
+  const av = document.createElement('div');
+  av.className = 'avatar ' + (role === 'user' ? 'user-av' : 'bot');
+  av.textContent = role === 'user' ? '나' : 'AI';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ' + (isError ? 'error' : role === 'user' ? 'user' : 'bot');
+  bubble.innerHTML = text.replace(/\n/g, '<br>');
+
+  if (role === 'user') {
+    wrap.appendChild(bubble);
+    wrap.appendChild(av);
+  } else {
+    wrap.appendChild(av);
+    wrap.appendChild(bubble);
+  }
+  chatArea.appendChild(wrap);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function showTyping() {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg';
+  wrap.id = 'typingIndicator';
+  wrap.innerHTML = '<div class="avatar bot">AI</div><div class="bubble bot"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
+  chatArea.appendChild(wrap);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  const text = inputBox.value.trim();
+  if (!text || isLoading) return;
+
+  chipsEl.style.display = 'none';
+  addMsg('user', text);
+  history.push({ role: 'user', content: text });
+
+  inputBox.value = '';
+  autoResize(inputBox);
+  sendBtn.disabled = true;
+  isLoading = true;
+  showTyping();
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer YOUR_OPENAI_API_KEY_HERE'   // ← API 키 입력
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 1000,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...history
+        ]
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      const errMsg = data?.error?.message || JSON.stringify(data);
+      throw new Error(`${res.status}: ${errMsg}`);
+    }
+    const reply = data.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
+    removeTyping();
+    addMsg('assistant', reply);
+    history.push({ role: 'assistant', content: reply });
+  } catch (e) {
+    removeTyping();
+    addMsg('assistant', '⚠️ 오류: ' + e.message, true);
+  }
+
+  isLoading = false;
+  sendBtn.disabled = !inputBox.value.trim();
+  inputBox.focus();
+}
+</script>
+</body>
+</html>
